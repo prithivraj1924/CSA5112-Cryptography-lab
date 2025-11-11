@@ -1,0 +1,49 @@
+# Polyalphabetic (Vigenère) Cipher Program
+# Each letter of the plaintext is shifted based on the corresponding letter of the key.
+
+def vigenere_encrypt(plaintext, key):
+    plaintext = plaintext.upper().replace(" ", "")
+    key = key.upper()
+    ciphertext = ""
+    key_index = 0
+
+    for char in plaintext:
+        if char.isalpha():
+            # Shift = position of key letter (A=0, B=1, ...)
+            shift = ord(key[key_index % len(key)]) - 65
+            new_char = chr((ord(char) - 65 + shift) % 26 + 65)
+            ciphertext += new_char
+            key_index += 1
+        else:
+            ciphertext += char
+    return ciphertext
+
+
+def vigenere_decrypt(ciphertext, key):
+    ciphertext = ciphertext.upper().replace(" ", "")
+    key = key.upper()
+    plaintext = ""
+    key_index = 0
+
+    for char in ciphertext:
+        if char.isalpha():
+            shift = ord(key[key_index % len(key)]) - 65
+            new_char = chr((ord(char) - 65 - shift) % 26 + 65)
+            plaintext += new_char
+            key_index += 1
+        else:
+            plaintext += char
+    return plaintext
+
+
+# Main program
+print("=== Polyalphabetic Substitution Cipher (Vigenère Cipher) ===")
+
+plaintext = input("Enter the plaintext: ")
+key = input("Enter the key: ")
+
+ciphertext = vigenere_encrypt(plaintext, key)
+decrypted_text = vigenere_decrypt(ciphertext, key)
+
+print("\nEncrypted Text:", ciphertext)
+print("Decrypted Text:", decrypted_text)
