@@ -1,0 +1,51 @@
+import string
+
+
+def monoalphabetic_encrypt(plaintext, key_map):
+    ciphertext = ""
+    for char in plaintext:
+        if char.isalpha():
+           
+            if char.isupper():
+                ciphertext += key_map[char.lower()].upper()
+            else:
+                ciphertext += key_map[char]
+        else:
+            ciphertext += char
+    return ciphertext
+
+def monoalphabetic_decrypt(ciphertext, key_map):
+    reverse_map = {v: k for k, v in key_map.items()}
+    plaintext = ""
+    for char in ciphertext:
+        if char.isalpha():
+            if char.isupper():
+                plaintext += reverse_map[char.lower()].upper()
+            else:
+                plaintext += reverse_map[char]
+        else:
+            plaintext += char
+    return plaintext
+
+
+
+plain_alphabet = list(string.ascii_lowercase)
+
+)
+cipher_alphabet = list("QWERTYUIOPASDFGHJKLZXCVBNM".lower())
+
+key_map = {plain_alphabet[i]: cipher_alphabet[i] for i in range(26)}
+
+
+plaintext = input("Enter the plaintext: ")
+
+
+ciphertext = monoalphabetic_encrypt(plaintext, key_map)
+decrypted_text = monoalphabetic_decrypt(ciphertext, key_map)
+
+print("\nCipher alphabet mapping:")
+for p, c in key_map.items():
+    print(f"{p} -> {c}")
+
+print("\nEncrypted Text:", ciphertext)
+print("Decrypted Text:", decrypted_text)
