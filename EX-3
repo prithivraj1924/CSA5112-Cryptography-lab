@@ -1,0 +1,108 @@
+
+import string
+
+def build_key_square(keyword):
+    keyword = ''.join(ch for ch in keyword.upper() if ch.isalpha()).replace('J', 'I')
+    seen = set()
+    key_letters = []
+    for ch in keyword:
+        if ch not in seen and ch != 'J':
+            seen.add(ch)
+            key_letters.append(ch)
+    for ch in string.ascii_uppercase:
+        if ch == 'J':
+            continue
+        if ch not in seen:
+            seen.add(ch)
+            key_letters.append(ch)
+   
+    square = [key_letters[i*5:(i+1)*5] for i in range(5)]
+    
+    pos = {square[r][c]: (r, c) for r in range(5) for c in range(5)}
+    return square, pos
+
+def preprocess_text(text):
+   
+    t = ''.join(ch for ch in text.upper() if ch.isalpha()).replace('J', 'I')
+   
+    digraphs = []
+    i = 0
+    while i < len(t):
+        a = t[i]
+        b = t[i+1] if i+1 < len(t) else None
+        if b is None:
+            digraphs.append((a, 'X'))
+            i += 1
+        elif a == b:
+            
+            digraphs.append((a, 'X'))
+            i += 1
+        else:
+            digraphs.append((a, b))
+            i += 2
+    return digraphs
+
+def encrypt_pair(a, b, pos, square):
+    ra, ca = pos[a]
+    rb, cb = pos[b]
+    if ra == rb:  # same row: shift right
+        return square[ra][(ca+1)%5], square[rb][(cb+1)%5]
+    if ca == cb:  # same column: shift down
+        return square[(ra+1)%5][ca], square[(rb+1)%5][cb]
+   
+    return square[ra][cb], square[rb][ca]
+
+def decrypt_pair(a, b, pos, square):
+    ra, ca = pos[a]
+    rb, cb = pos[b]
+    if ra == rb:  # same row: shift left
+        return square[ra][(ca-1)%5], square[rb][(cb-1)%5]
+    if ca == cb:  # same column: shift up
+        return square[(ra-1)%5][ca], square[(rb-1)%5][cb]
+   
+    return square[ra][cb], square[rb][ca]
+
+def playfair_encrypt(plaintext, keyword):
+    square, pos = build_key_square(keyword)
+    digraphs = preprocess_text(plaintext)
+    out = []
+    for a, b in digraphs:
+        ea, eb = encrypt_pair(a, b, pos, square)
+        out.append(ea + eb)
+    return ''.join(out), square
+
+def playfair_decrypt(ciphertext, keyword):
+    square, pos = build_key_square(keyword)
+  
+    ctext = ''.join(ch for ch in ciphertext.upper() if ch.isalpha()).replace('J', 'I')
+    pairs = [(ctext[i], ctext[i+1]) for i in range(0, len(ctext), 2)]
+    out = []
+    for a, b in pairs:
+        da, db = decrypt_pair(a, b, pos, square)
+        out.append(da + db)
+    return ''.join(out), square
+
+def print_square(square):
+    for row in square:
+        print(' '.join(row))
+
+if __name__ == "__main__":
+    print("=== Playfair Cipher ===")
+    keyword = input("Enter keyword (I/J treated as I): ")
+    choice = input("Encrypt (E) or Decrypt (D)? ").strip().upper()
+
+    if choice == 'E':
+        plaintext = input("Enter plaintext: ")
+        ciphertext, square = playfair_encrypt(plaintext, keyword)
+        print("\nKey Square (5x5):")
+        print_square(square)
+        print("\nCiphertext:", ciphertext)
+    elif choice == 'D':
+        ciphertext = input("Enter ciphertext: ")
+        plaintext, square = playfair_decrypt(ciphertext, keyword)
+        print("\nKey Square (5x5):")
+        print_square(square)
+        print("\nDecrypted (raw):", plaintext)
+        print("(Note: You may need to remove filler X's that were inserted during encryption.)")
+    else:
+        print("Invalid choice. Please enter E or D.")
