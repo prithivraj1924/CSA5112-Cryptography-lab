@@ -1,0 +1,78 @@
+
+def build_matrix():
+    matrix = [
+        ['M','F','H','I','K'],
+        ['U','N','O','P','Q'],
+        ['Z','V','W','X','Y'],
+        ['E','L','A','R','G'],
+        ['D','S','T','B','C']
+    ]
+    pos = {matrix[r][c]: (r,c) for r in range(5) for c in range(5)}
+    pos['J'] = pos['I']   # map J to I
+    return matrix, pos
+
+def normalize(text):
+    import re
+    s = re.sub(r'[^A-Za-z]', '', text).upper()
+    s = s.replace('J', 'I')
+    return s
+
+def make_digrams(s):
+    digrams = []
+    i = 0
+    while i < len(s):
+        a = s[i]
+        b = s[i+1] if i+1 < len(s) else ''
+        if b == '':
+            digrams.append(a + 'X')
+            i += 1
+        elif a == b:
+            digrams.append(a + 'X')
+            i += 1
+        else:
+            digrams.append(a + b)
+            i += 2
+    return digrams
+
+def encrypt_pair(pair, matrix, pos):
+    a, b = pair[0], pair[1]
+    r1, c1 = pos[a]
+    r2, c2 = pos[b]
+    if r1 == r2:
+        # same row -> shift right
+        return matrix[r1][(c1+1)%5] + matrix[r2][(c2+1)%5]
+    elif c1 == c2:
+        # same column -> shift down
+        return matrix[(r1+1)%5][c1] + matrix[(r2+1)%5][c2]
+    else:
+        # rectangle -> swap columns
+        return matrix[r1][c2] + matrix[r2][c1]
+
+def encrypt_playfair(plaintext):
+    matrix, pos = build_matrix()
+    norm = normalize(plaintext)
+    digrams = make_digrams(norm)
+    cipher_pairs = [encrypt_pair(dg, matrix, pos) for dg in digrams]
+    grouped = ' '.join(cipher_pairs)
+    compact = ''.join(cipher_pairs)
+    return norm, digrams, grouped, compact
+
+if __name__ == "__main__":
+    pt = input("Enter plaintext to encrypt: ")
+    norm, digrams, grouped, compact = encrypt_playfair(pt)
+
+    print("\nPlayfair matrix (I represents I/J):")
+    for row in build_matrix()[0]:
+        print(' '.join(row))
+
+    print("\nNormalized plaintext (letters only, J->I):")
+    print(norm)
+
+    print("\nDigrams:")
+    print(digrams)
+
+    print("\nEncrypted ciphertext (grouped digrams):")
+    print(grouped)
+
+    print("\nEncrypted ciphertext (compact):")
+    print(compact)
