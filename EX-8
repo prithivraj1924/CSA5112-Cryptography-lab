@@ -1,0 +1,56 @@
+def generate_cipher_alphabet(keyword):
+    keyword = keyword.lower()
+    result = ""
+
+    # Add keyword letters (remove duplicates)
+    for ch in keyword:
+        if ch not in result and ch.isalpha():
+            result += ch
+
+    # Add remaining alphabet letters
+    for ch in "abcdefghijklmnopqrstuvwxyz":
+        if ch not in result:
+            result += ch
+
+    return result
+
+
+def encrypt(plaintext, cipher_alpha):
+    plaintext = plaintext.lower()
+    alphabet = "abcdefghijklmnopqrstuvwxyz"
+    ciphertext = ""
+
+    for ch in plaintext:
+        if ch.isalpha():
+            ciphertext += cipher_alpha[alphabet.index(ch)]
+        else:
+            ciphertext += ch  # keep spaces/punctuation
+    return ciphertext
+
+
+def decrypt(ciphertext, cipher_alpha):
+    alphabet = "abcdefghijklmnopqrstuvwxyz"
+    plaintext = ""
+
+    for ch in ciphertext:
+        if ch.isalpha():
+            plaintext += alphabet[cipher_alpha.index(ch)]
+        else:
+            plaintext += ch
+    return plaintext
+
+
+# MAIN PROGRAM
+keyword = "CIPHER"
+cipher_alphabet = generate_cipher_alphabet(keyword)
+
+print("Generated Cipher Alphabet:")
+print(cipher_alphabet)
+
+message = input("Enter message: ")
+
+encrypted = encrypt(message, cipher_alphabet)
+print("Encrypted:", encrypted)
+
+decrypted = decrypt(encrypted, cipher_alphabet)
+print("Decrypted:", decrypted)
