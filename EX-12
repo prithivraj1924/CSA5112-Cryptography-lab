@@ -1,0 +1,73 @@
+# Hill Cipher (2x2) Encryption and Decryption
+import numpy as np
+import re
+
+# Key matrix
+K = np.array([[9, 4],
+              [5, 7]])
+
+# Function to find modular inverse mod 26
+def modinv(a, m):
+    a = a % m
+    for x in range(1, m):
+        if (a * x) % m == 1:
+            return x
+    return None
+
+# Compute inverse key matrix
+det = int(round(np.linalg.det(K)))
+det_mod26 = det % 26
+inv_det = modinv(det_mod26, 26)
+
+adj = np.array([[ K[1,1], -K[0,1]],
+                [-K[1,0],  K[0,0] ]])
+
+invK = (inv_det * adj) % 26
+
+
+def normalize(text):
+    text = re.sub(r'[^A-Za-z]', '', text).upper()
+    return text
+
+
+def text_to_nums(t):
+    return [ord(c) - 65 for c in t]
+
+
+def nums_to_text(nums):
+    return ''.join(chr(n + 65) for n in nums)
+
+
+def hill_encrypt(plaintext):
+    p = normalize(plaintext)
+    if len(p) % 2 == 1:
+        p += "X"  # pad
+    ciphertext = ""
+
+    for i in range(0, len(p), 2):
+        pair = p[i:i+2]
+        vec = np.array(text_to_nums(pair)).reshape(2,1)
+        enc = (K.dot(vec) % 26).flatten()
+        ciphertext += nums_to_text(list(enc))
+
+    return p, ciphertext
+
+
+def hill_decrypt(cipher):
+    plain = ""
+    for i in range(0, len(cipher), 2):
+        pair = cipher[i:i+2]
+        vec = np.array(text_to_nums(pair)).reshape(2,1)
+        dec = (invK.dot(vec) % 26).flatten()
+        plain += nums_to_text(list(dec))
+    return plain
+
+
+# -------- MAIN PROGRAM --------
+pt = input("Enter plaintext: ")
+norm, cipher = hill_encrypt(pt)
+decrypt = hill_decrypt(cipher)
+
+print("\nNormalized plaintext:", norm)
+print("Encrypted ciphertext:", cipher)
+print("Decrypted plaintext:", decrypt)
