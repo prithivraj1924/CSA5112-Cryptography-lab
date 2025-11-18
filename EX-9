@@ -1,0 +1,69 @@
+
+def generate_key_matrix(key):
+    key = key.upper().replace("J", "I")
+    matrix = []
+    used = set()
+
+    for ch in key:
+        if ch not in used and ch.isalpha():
+            used.add(ch)
+            matrix.append(ch)
+
+    for ch in "ABCDEFGHIKLMNOPQRSTUVWXYZ":
+        if ch not in used:
+            used.add(ch)
+            matrix.append(ch)
+
+    key_matrix = [matrix[i*5:(i+1)*5] for i in range(5)]
+    return key_matrix
+
+
+def find_position(matrix, letter):
+    for i in range(5):
+        for j in range(5):
+            if matrix[i][j] == letter:
+                return i, j
+    return None
+
+
+def decrypt_playfair(cipher, key):
+    cipher = cipher.replace(" ", "").upper().replace("J", "I")
+    if len(cipher) % 2 != 0:
+        cipher += 'X'
+
+    matrix = generate_key_matrix(key)
+    plaintext = ""
+
+    for i in range(0, len(cipher), 2):
+        a = cipher[i]
+        b = cipher[i+1]
+        r1, c1 = find_position(matrix, a)
+        r2, c2 = find_position(matrix, b)
+
+        if r1 == r2:
+            # Same row → shift left
+            plaintext += matrix[r1][(c1 - 1) % 5]
+            plaintext += matrix[r2][(c2 - 1) % 5]
+
+        elif c1 == c2:
+            # Same column → shift up
+            plaintext += matrix[(r1 - 1) % 5][c1]
+            plaintext += matrix[(r2 - 1) % 5][c2]
+
+        else:
+            # Rectangle → swap columns
+            plaintext += matrix[r1][c2]
+            plaintext += matrix[r2][c1]
+
+    return plaintext
+
+
+# ------------------- MAIN PROGRAM -------------------
+
+key = input("Enter Playfair key: ")
+cipher = input("Enter Playfair ciphertext: ")
+
+plain = decrypt_playfair(cipher, key)
+
+print("\nDecrypted Plaintext:")
+print(plain)
