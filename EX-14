@@ -1,0 +1,50 @@
+# One-Time Pad Vigenère Cipher (numbers 0–25)
+
+import re
+
+# Convert letters A–Z ↔ numbers 0–25
+def to_nums(text):
+    return [ord(c) - ord('A') for c in text]
+
+def to_text(nums):
+    return ''.join(chr((n % 26) + ord('A')) for n in nums)
+
+# Normalize (remove spaces, uppercase)
+def normalize(s):
+    return re.sub(r'[^A-Za-z]', '', s).upper()
+
+
+# ---------- (a) ENCRYPT WITH GIVEN KEY ----------
+plaintext_a = "send more money"
+key_a = [9, 0, 1, 7, 23, 15, 21, 14, 11, 11, 2, 8, 9]
+
+ptA = normalize(plaintext_a)
+ptA_nums = to_nums(ptA)
+
+cipher_nums = [(p + k) % 26 for p, k in zip(ptA_nums, key_a)]
+ciphertext = to_text(cipher_nums)
+
+# ---------- (b) FIND NEW KEY TO DECRYPT TO NEW PLAINTEXT ----------
+plaintext_b = "cash not needed"
+
+ptB = normalize(plaintext_b)
+ptB_nums = to_nums(ptB)
+
+# key = (cipher - new_plaintext) mod 26
+new_key = [(c - p) % 26 for c, p in zip(cipher_nums, ptB_nums)]
+
+
+# ---------- OUTPUT ----------
+print("=== PART (a): Encryption ===")
+print("Normalized plaintext A :", ptA)
+print("Key A                 :", key_a)
+print("Ciphertext            :", ciphertext)
+
+print("\n=== PART (b): New key for same ciphertext ===")
+print("Normalized plaintext B :", ptB)
+print("Ciphertext (same)      :", ciphertext)
+print("New key stream         :", new_key)
+
+# Verify decryption
+check = to_text([(c - k) % 26 for c, k in zip(cipher_nums, new_key)])
+print("Decryption check       :", check)
