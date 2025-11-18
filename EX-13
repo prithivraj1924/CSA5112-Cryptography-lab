@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+"""
+Hill cipher: demonstration of known-plaintext and chosen-plaintext attacks.
+Works for n x n Hill keys (here we show n=2 examples).
+"""
+
+import re
+from typing import List, Tuple
+
+ALPH = 26
+
+# ----------------- basic helpers -----------------
+def modinv(a: int, m: int) -> int:
+    a %= m
+    for x in range(1, m):
+        if (a * x) % m == 1:
+            return x
+    raise ValueError(f"No modular inverse for {a} mod {m}")
+
+def text_to_nums(s: str) -> List[int]:
+    return [ord(ch) - 65 for ch in s.upper()]
+
+def nums_to_text(nums: List[int]) -> str:
+    return ''.join(chr((n % ALPH) + 65) for n in nums)
+
+def normalize_plaintext(s: str) -> str:
+    s = re.sub(r'[^A-Za-z]', '', s).upper()
+    return s
+
+# ----------------- matrix arithmetic (small integer matrices) -----------------
+def mat_mul(A: List[List[int]], B: List[List[int]]) -> List[List[int]]:
+    # Multiply A (r x k) by B (k x c) -> r x c
+    r, k = len(A), len(A[0])
+    k2, c = len(B), len(B[0])
+    assert k == k2
+    C = [[0]*c for _ in range(r)]
+    for i in range(r):
+        for j in range(c):
+            s = 0
+            for t in range(k):
+                s += A[i][t] * B[t][j]
+            C[i][j] = s % ALPH
+    return C
+
+def mat_copy(A):
+    return [row[:] for row in A]
+
+def mat_inverse_mod(A: List[List[int]], mod: int = 26) -> List[List[int]]:
+    """Return inverse of square matrix A modulo mod using Gauss-Jordan.
+       Raises ValueError if not invertible."""
+    n = len(A)
+    # build augmented matrix [A | I]
+    M = [ [ (A[i][j] % mod) for j in range(n) ] + [ 1 if i==j else 0 for j in range(n) ] for i in range(n) ]
+    # forward elimination
+    for col in range(n):
+        # find pivot
+        pivot = None
+        for row in range(col, n):
+            if M[row][col] % mod != 0:
+                pivot = row
+                break
+        if pivot is None:
+            raise ValueError("Matrix not invertible (no pivot) mod %d" % mod)
+        # swap if needed
+        if pivot != col:
+            M[col], M[pivot] = M[pivot], M[col]
+        # normalize pivot row
+        inv_p = modinv(M[col][col], mod)
+        for j in range(2*n):
+            M[col][j] = (M[col][j] * inv_p) % mod
+        # eliminate other rows
+        for r in range(n):
+            if r == col:
+                continue
+            factor = M[r][col]
+            if factor != 0:
+                for j in range(2*n):
+                    M[r][j] = (M[r][j] - factor * M[col][j]) % mod
+    # extract inverse (right half)
+    inv = [ row[n:] for row in M ]
+    return inv
+
+# ----------------- Hill encrypt / utilities -----------------
+def blocks_from_text(text: str, n: int) -> List[List[int]]:
+    """Split normalized text into blocks of length n; pad with 'X' (23) if needed.
+       Return list of column-vectors (each is length-n list)."""
+    t = normalize_plaintext(text)
+    if len(t) % n != 0:
+        t = t + 'X' * (n - (len(t) % n))
+    blocks = []
+    for i in range(0, len(t), n):
+        blk = text_to_nums(t[i:i+n])
+        blocks.append(blk)
+    return blocks
+
+def encrypt_blocks_with_key(key: List[List[int]], blocks: List[List[int]]) -> List[List[int]]:
+    """Given key (n x n) and blocks (list of n-length vectors), return ciphertext blocks."""
+    n = len(key)
+    Cblocks = []
+    for v in blocks:
+        # treat v as column; compute key * v mod 26
+        res = [ sum(key[i][j] * v[j] for j in range(n)) % ALPH for i in range(n) ]
+        Cblocks.append(res)
+    return Cblocks
+
+def blocks_to_text(blocks: List[List[int]]) -> str:
+    return ''.join(nums_to_text(vec) for vec in blocks)
+
+# ----------------- Attack routines -----------------
+def recover_key_from_pairs(plain_blocks: List[List[int]], cipher_blocks: List[List[int]]) -> List[List[int]]:
+    """Given n linearly independent plaintext column-vectors and corresponding ciphertext columns,
+       returns the n x n key matrix (mod 26). Both lists must contain exactly n blocks and
+       the plaintext block matrix must be invertible mod 26."""
+    n = len(plain_blocks[0])
+    assert len(plain_blocks) >= n and len(cipher_blocks) >= n
+    # Build P (n x n) and C (n x n) using first n blocks as columns
+    P = [ [ plain_blocks[col][row] % ALPH for col in range(n) ] for row in range(n) ]
+    C = [ [ cipher_blocks[col][row] % ALPH for col in range(n) ] for row in range(n) ]
+    # invert P
+    P_inv = mat_inverse_mod(P, ALPH)
+    # K = C * P^{-1} (matrix multiply)
+    K = mat_mul(C, P_inv)
+    return K
+
+# ----------------- demo / sample usage -----------------
+def demo():
+    # Secret key used by the "victim" (n x n)
+    K_secret = [[9, 4],
+                [5, 7]]   # example 2x2
+    n = 2
+
+    print("Secret key (victim):")
+    for row in K_secret:
+        print(row)
+
+    # ---------- Example: chosen-plaintext attack (trivial) ----------
+    # If attacker can choose plaintext blocks equal to the columns of identity matrix
+    # (in A=0..Z=25 encoding, vector [1,0] is letters 'B','A' ; vector [0,1] is 'A','B')
+    # then ciphertext columns are just key columns -> key recovered immediately.
+    chosen_plain_blocks = [ text_to_nums("BA"), text_to_nums("AB") ]  # columns [1,0] and [0,1]
+    chosen_cipher_blocks = encrypt_blocks_with_key(K_secret, chosen_plain_blocks)
+
+    print("\nChosen-plaintext attack:")
+    print("Chosen plaintext blocks (as letter-pairs):", [ " ".join(nums_to_text(b)) for b in chosen_plain_blocks ])
+    print("Corresponding ciphertext blocks:", [ nums_to_text(b) for b in chosen_cipher_blocks ])
+    # Build key directly: columns of key = ciphertext columns (because P = I)
+    # Convert ciphertext blocks into key matrix columns
+    K_recovered_chosen = [ [ chosen_cipher_blocks[col][row] for col in range(n) ] for row in range(n) ]
+    print("Recovered key (chosen-plaintext):")
+    for row in K_recovered_chosen:
+        print(row)
+
+    # ---------- Example: known-plaintext attack ----------
+    # Attacker has n plaintext-ciphertext pairs where plaintext block matrix is invertible.
+    # We'll pick plaintext blocks that form an invertible P (attacker doesn't need to choose them,
+    # but must have them). For demonstration we pick two blocks that produce invertible P:
+    # blocks 'BA' ([1,0]) and 'CB' ([2,1]) -> P = [[1,2],[0,1]] which has det=1 (invertible)
+    known_plain_blocks = [ text_to_nums("BA"), text_to_nums("CB") ]
+    known_cipher_blocks = encrypt_blocks_with_key(K_secret, known_plain_blocks)
+    print("\nKnown-plaintext attack (using 2 pairs):")
+    print("Plain blocks:", [ nums_to_text(b) for b in known_plain_blocks ])
+    print("Cipher blocks:", [ nums_to_text(b) for b in known_cipher_blocks ])
+    # Recover key: K = C * P^{-1}
+    K_recovered_known = recover_key_from_pairs(known_plain_blocks, known_cipher_blocks)
+    print("Recovered key (known-plaintext):")
+    for row in K_recovered_known:
+        print(row)
+
+    # Verify recovered key equals secret key
+    print("\nVerification (are recovered keys same as secret key?):")
+    print("chosen-plaintext recovered == secret? ", K_recovered_chosen == K_secret)
+    print("known-plaintext recovered == secret?  ", K_recovered_known == K_secret)
+
+if __name__ == "__main__":
+    demo()
