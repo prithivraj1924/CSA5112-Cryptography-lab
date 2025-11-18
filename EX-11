@@ -1,0 +1,19 @@
+import math
+
+print("Playfair Key Space Calculator")
+input("Press Enter to calculate total possible keys...")
+
+# 25 letters (I/J combined) → total keys = 25!
+fact_25 = math.factorial(25)
+
+# Convert 25! to power of 2:
+power_of_2 = math.log2(fact_25)
+
+print("\nTotal possible Playfair keys (25!):")
+print(fact_25)
+
+print("\nApproximate power of 2:")
+print(f"25! ≈ 2^{power_of_2:.2f}")
+
+print("\nRounded power of 2:")
+print(f"≈ 2^{round(power_of_2)}")
