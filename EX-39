@@ -1,0 +1,41 @@
+import string
+from collections import Counter
+
+# English letter frequency order (most common to least common)
+ENGLISH_FREQ_ORDER = "ETAOINSHRDLCUMWFGYPBVKJXQZ"
+
+def decrypt(ciphertext, key):
+    plaintext = []
+    for ch in ciphertext.upper():
+        if ch in string.ascii_uppercase:
+            p = (ord(ch) - ord('A') - key) % 26
+            plaintext.append(chr(p + ord('A')))
+        else:
+            plaintext.append(ch)
+    return ''.join(plaintext)
+
+def score_text(text):
+    """Score based on frequency similarity to English."""
+    counts = Counter(ch for ch in text if ch in string.ascii_uppercase)
+    if not counts:
+        return 0
+    most_common = [c for c, _ in counts.most_common(6)]
+    score = sum(ENGLISH_FREQ_ORDER.index(c) for c in most_common if c in ENGLISH_FREQ_ORDER)
+    return -score  # lower is better
+
+def frequency_attack(ciphertext, top_n=10):
+    candidates = []
+    for key in range(26):
+        pt = decrypt(ciphertext, key)
+        candidates.append((score_text(pt), key, pt))
+    candidates.sort()  # sort by score
+    return candidates[:top_n]
+
+# --- Demo ---
+ciphertext = "WKH TXLFN EURZQ IRA MXPSV RYHU WKH ODCB GRJ"  # Caesar shift of "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG"
+
+top_guesses = frequency_attack(ciphertext, top_n=10)
+print("Ciphertext:", ciphertext)
+print("\nTop 10 possible plaintexts:")
+for rank, (score, key, pt) in enumerate(top_guesses, 1):
+    print(f"{rank}. Key={key}, Plaintext={pt}")
