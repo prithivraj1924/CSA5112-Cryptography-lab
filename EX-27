@@ -1,0 +1,32 @@
+# RSA insecure scheme demo: alphabet mapped to 0-25
+def rsa_encrypt(m, e, n):
+    return pow(m, e, n)
+
+def build_lookup_table(e, n):
+    table = {}
+    for m in range(26):  # only 26 possible plaintexts
+        c = rsa_encrypt(m, e, n)
+        table[c] = m
+    return table
+
+# Example parameters (large n in practice, but small here for demo)
+e = 31
+n = 3599
+
+# Alice's message: "CAT" -> [2, 0, 19]
+plaintext = [2, 0, 19]
+ciphertext = [rsa_encrypt(m, e, n) for m in plaintext]
+
+print("Ciphertext:", ciphertext)
+
+# Attacker builds lookup table
+lookup = build_lookup_table(e, n)
+
+# Attacker decrypts without private key
+recovered = [lookup[c] for c in ciphertext]
+print("Recovered plaintext numbers:", recovered)
+
+# Convert back to letters
+alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+recovered_text = "".join(alphabet[m] for m in recovered)
+print("Recovered message:", recovered_text)
