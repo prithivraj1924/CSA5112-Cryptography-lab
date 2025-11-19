@@ -1,0 +1,19 @@
+from Crypto.PublicKey import DSA
+from Crypto.Signature import DSS
+from Crypto.Hash import SHA256
+from Crypto.Random import get_random_bytes
+
+# Generate DSA key pair
+key = DSA.generate(1024)
+signer = DSS.new(key, 'fips-186-3')
+
+message = b"HELLO DSA SIGNATURE DEMO"
+hash_obj = SHA256.new(message)
+
+# Sign the same message twice
+signature1 = signer.sign(hash_obj)
+signature2 = signer.sign(hash_obj)
+
+print("Signature 1:", signature1.hex())
+print("Signature 2:", signature2.hex())
+print("Are signatures equal?", signature1 == signature2)
