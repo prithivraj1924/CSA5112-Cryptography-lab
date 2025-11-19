@@ -1,0 +1,47 @@
+import math
+
+def trial_factor(n):
+    # Find a non-trivial factor of n by trial division
+    for p in range(2, int(math.isqrt(n)) + 1):
+        if n % p == 0:
+            q = n // p
+            return p, q
+    raise ValueError("No factors found; n might be prime.")
+
+def egcd(a, b):
+    # Extended Euclidean Algorithm: returns (g, x, y) such that a*x + b*y = g = gcd(a, b)
+    if b == 0:
+        return (a, 1, 0)
+    g, x1, y1 = egcd(b, a % b)
+    x = y1
+    y = x1 - (a // b) * y1
+    return (g, x, y)
+
+def modinv(a, m):
+    # Modular inverse of a modulo m (if gcd(a, m) == 1)
+    g, x, _ = egcd(a, m)
+    if g != 1:
+        raise ValueError("Modular inverse does not exist.")
+    return x % m
+
+def derive_private_key(e, n):
+    p, q = trial_factor(n)
+    phi = (p - 1) * (q - 1)
+    d = modinv(e, phi)
+    return {
+        "p": p,
+        "q": q,
+        "phi": phi,
+        "d": d
+    }
+
+if __name__ == "__main__":
+    e = 31
+    n = 3599
+
+    result = derive_private_key(e, n)
+    print(f"Found factors: p = {result['p']}, q = {result['q']}")
+    print(f"phi(n) = {result['phi']}")
+    print(f"Private key d = {result['d']}")
+    # Sanity check
+    print(f"Check: (e * d) % phi = {(e * result['d']) % result['phi']}")
