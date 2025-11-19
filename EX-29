@@ -1,0 +1,78 @@
+import os
+
+LANE_BITS = 64
+TOTAL_LANES = 25
+RATE_BITS = 1024
+CAPACITY_BITS = 1600 - RATE_BITS  # 576
+RATE_LANES = RATE_BITS // LANE_BITS  # 16
+CAPACITY_LANES = CAPACITY_BITS // LANE_BITS  # 9
+
+def nonzero64(data):
+    """Ensure the lane has at least one nonzero bit."""
+    val = int.from_bytes(data, 'little')
+    if val == 0:
+        return 1  # force nonzero
+    return val
+
+class KeccakStateNoPerm:
+    def __init__(self):
+        # Initialize 25 lanes (64-bit each) = 1600 bits total
+        self.lanes = [0] * TOTAL_LANES
+        # Capacity lanes are the last 9 lanes (by conventional layout: rate first, capacity last)
+        # All capacity lanes start at 0 (per problem statement)
+        # Rate lanes will be set by absorption; P0 has nonzero in each rate lane
+
+    def absorb_block_no_permutation(self, block_bytes):
+        """
+        Absorb a block into the rate lanes only by XOR (no permutation applied).
+        block_bytes length must be exactly RATE_BITS/8 (128 bytes).
+        """
+        assert len(block_bytes) == RATE_BITS // 8
+        # Split block into 16 lanes of 64 bits (little-endian)
+        for i in range(RATE_LANES):
+            chunk = block_bytes[i*8:(i+1)*8]
+            msg_lane = int.from_bytes(chunk, 'little')
+            self.lanes[i] ^= msg_lane
+        # No permutation step
+
+    def capacity_nonzero_count(self):
+        return sum(1 for i in range(RATE_LANES, TOTAL_LANES) if self.lanes[i] != 0)
+
+    def capacity_all_nonzero(self):
+        return self.capacity_nonzero_count() == CAPACITY_LANES
+
+def make_block_with_all_rate_lanes_nonzero():
+    """
+    Construct a 128-byte block where each 64-bit rate lane has at least one nonzero bit.
+    """
+    block = bytearray()
+    for _ in range(RATE_LANES):
+        lane_bytes = os.urandom(8)
+        val = nonzero64(lane_bytes)
+        block += val.to_bytes(8, 'little')
+    return bytes(block)
+
+def demo(num_blocks=10):
+    st = KeccakStateNoPerm()
+
+    # P0: first message block where each rate lane has at least one nonzero bit
+    p0 = make_block_with_all_rate_lanes_nonzero()
+    st.absorb_block_no_permutation(p0)
+
+    print(f"Initial capacity lanes (count nonzero): {st.capacity_nonzero_count()} / {CAPACITY_LANES}")
+
+    # Absorb more blocks, still without permutation
+    for b in range(1, num_blocks + 1):
+        blk = make_block_with_all_rate_lanes_nonzero()
+        st.absorb_block_no_permutation(blk)
+        print(f"After absorbing block {b}: capacity nonzero count = {st.capacity_nonzero_count()} / {CAPACITY_LANES}")
+
+    # Final verdict
+    if st.capacity_all_nonzero():
+        print("All capacity lanes became nonzero (unexpected if permutation is ignored).")
+    else:
+        print("Capacity lanes remain zero because permutation is ignored; they never become nonzero.")
+
+if __name__ == "__main__":
+    demo(num_blocks=10)
+
