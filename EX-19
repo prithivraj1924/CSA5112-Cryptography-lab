@@ -1,0 +1,65 @@
+# Requires: pip install pycryptodome
+import secrets
+import base64
+from Crypto.Cipher import DES3
+from Crypto.Util.Padding import pad, unpad
+
+BLOCK_SIZE = 8  # DES/3DES block size in bytes
+
+def generate_3des_key():
+    """
+    Generate a 24-byte 3DES key with correct parity and avoid weak keys.
+    Returns a bytes object suitable for DES3.new(...).
+    """
+    # DES3 keys must have odd parity per byte; pycryptodome provides adjust_key_parity
+    while True:
+        raw = secrets.token_bytes(24)  # 192-bit candidate
+        try:
+            key = DES3.adjust_key_parity(raw)
+            # Attempt to create a cipher to validate key isn't 'weak'
+            DES3.new(key, DES3.MODE_ECB)
+            return key
+        except ValueError:
+            # key considered weak for 3DES; try again
+            continue
+
+def encrypt_cbc_3des(plaintext_bytes: bytes, key: bytes) -> str:
+    """
+    Encrypt plaintext_bytes using 3DES-CBC.
+    Returns a base64 string containing IV || ciphertext.
+    """
+    iv = secrets.token_bytes(BLOCK_SIZE)  # 8-byte IV for 3DES
+    cipher = DES3.new(key, DES3.MODE_CBC, iv=iv)
+    padded = pad(plaintext_bytes, BLOCK_SIZE)  # PKCS#7 padding
+    ciphertext = cipher.encrypt(padded)
+    combined = iv + ciphertext
+    return base64.b64encode(combined).decode('utf-8')
+
+def decrypt_cbc_3des(b64_iv_ciphertext: str, key: bytes) -> bytes:
+    """
+    Decrypt a base64(IV || ciphertext) produced by encrypt_cbc_3des.
+    Returns the original plaintext bytes.
+    """
+    combined = base64.b64decode(b64_iv_ciphertext)
+    iv = combined[:BLOCK_SIZE]
+    ciphertext = combined[BLOCK_SIZE:]
+    cipher = DES3.new(key, DES3.MODE_CBC, iv=iv)
+    padded = cipher.decrypt(ciphertext)
+    plaintext = unpad(padded, BLOCK_SIZE)
+    return plaintext
+
+if __name__ == "__main__":
+    # Demo usage:
+    key = generate_3des_key()
+    print("3DES key (hex):", key.hex())
+
+    message = b"Hello — this is a test message for 3DES-CBC!"
+    print("Plaintext:", message)
+
+    encrypted = encrypt_cbc_3des(message, key)
+    print("Encrypted (base64 IV||ciphertext):", encrypted)
+
+    decrypted = decrypt_cbc_3des(encrypted, key)
+    print("Decrypted plaintext:", decrypted)
+    assert decrypted == message
+    print("Round-trip successful.")
