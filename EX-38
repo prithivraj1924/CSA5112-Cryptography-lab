@@ -1,0 +1,68 @@
+import numpy as np
+import string
+
+# Map letters to numbers and back
+def char_to_num(c):
+    return ord(c.upper()) - ord('A')
+
+def num_to_char(n):
+    return chr((n % 26) + ord('A'))
+
+def text_to_vector(text):
+    return np.array([char_to_num(c) for c in text])
+
+def vector_to_text(vec):
+    return ''.join(num_to_char(int(x)) for x in vec)
+
+def encrypt_block(block, K):
+    vec = text_to_vector(block)
+    c = K.dot(vec) % 26
+    return vector_to_text(c)
+
+def decrypt_block(block, K):
+    vec = text_to_vector(block)
+    K_inv = np.linalg.inv(K)
+    det = round(np.linalg.det(K))
+    det_inv = pow(int(det), -1, 26)  # modular inverse of determinant
+    adj = np.round(det * K_inv).astype(int) % 26
+    K_inv_mod = (det_inv * adj) % 26
+    p = K_inv_mod.dot(vec) % 26
+    return vector_to_text(p)
+
+# Recover key matrix from plaintext-ciphertext pairs
+def recover_key(plaintext_blocks, ciphertext_blocks):
+    P = np.column_stack([text_to_vector(b) for b in plaintext_blocks])
+    C = np.column_stack([text_to_vector(b) for b in ciphertext_blocks])
+    P_inv = np.linalg.inv(P)
+    det = round(np.linalg.det(P))
+    det_inv = pow(int(det), -1, 26)
+    adj = np.round(det * P_inv).astype(int) % 26
+    P_inv_mod = (det_inv * adj) % 26
+    K = (C.dot(P_inv_mod)) % 26
+    return K.astype(int)
+
+# --- Demo ---
+# Secret key matrix (2x2 Hill cipher)
+K_secret = np.array([[3, 10],
+                     [20, 9]])
+
+# Chosen plaintext blocks
+P1, P2 = "AB", "BA"
+C1 = encrypt_block(P1, K_secret)
+C2 = encrypt_block(P2, K_secret)
+
+print("Known pairs:")
+print(f"{P1} -> {C1}")
+print(f"{P2} -> {C2}")
+
+# Recover key
+K_recovered = recover_key([P1, P2], [C1, C2])
+print("\nRecovered key matrix:")
+print(K_recovered)
+
+# Test decryption
+testPT = "HI"
+testCT = encrypt_block(testPT, K_secret)
+print(f"\nEncrypt with secret K: {testPT} -> {testCT}")
+decPT = decrypt_block(testCT, K_recovered)
+print(f"Decrypt with recovered K: {decPT}")
