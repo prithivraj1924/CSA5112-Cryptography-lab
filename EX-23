@@ -1,0 +1,96 @@
+# Simplified DES (S-DES) implementation with Counter (CTR) mode
+
+# Permutations and S-boxes
+P10 = [3,5,2,7,4,10,1,9,8,6]
+P8  = [6,3,7,4,8,5,10,9]
+IP  = [2,6,3,1,4,8,5,7]
+IP_INV = [4,1,3,5,7,2,8,6]
+EP  = [4,1,2,3,2,3,4,1]
+P4  = [2,4,3,1]
+
+S0 = [[1,0,3,2],
+      [3,2,1,0],
+      [0,2,1,3],
+      [3,1,3,2]]
+
+S1 = [[0,1,2,3],
+      [2,0,1,3],
+      [3,0,1,0],
+      [2,1,0,3]]
+
+def permute(bits, table):
+    return [bits[i-1] for i in table]
+
+def left_shift(bits, n):
+    return bits[n:] + bits[:n]
+
+def key_generation(key):
+    key = permute(key, P10)
+    left, right = key[:5], key[5:]
+    left, right = left_shift(left,1), left_shift(right,1)
+    K1 = permute(left+right, P8)
+    left, right = left_shift(left,2), left_shift(right,2)
+    K2 = permute(left+right, P8)
+    return K1, K2
+
+def sbox_lookup(bits, sbox):
+    row = (bits[0]<<1) + bits[3]
+    col = (bits[1]<<1) + bits[2]
+    val = sbox[row][col]
+    return [val>>1, val&1]
+
+def fk(bits, subkey):
+    left, right = bits[:4], bits[4:]
+    temp = permute(right, EP)
+    temp = [t ^ k for t,k in zip(temp, subkey)]
+    left_sbox = sbox_lookup(temp[:4], S0)
+    right_sbox = sbox_lookup(temp[4:], S1)
+    sbox_out = permute(left_sbox+right_sbox, P4)
+    left = [l ^ s for l,s in zip(left, sbox_out)]
+    return left + right
+
+def switch(bits):
+    return bits[4:] + bits[:4]
+
+def sdes_encrypt_block(block, K1, K2):
+    block = permute(block, IP)
+    block = fk(block, K1)
+    block = switch(block)
+    block = fk(block, K2)
+    block = permute(block, IP_INV)
+    return block
+
+def str_to_bits(s):
+    return [int(b) for b in s]
+
+def bits_to_str(bits):
+    return ''.join(str(b) for b in bits)
+
+def int_to_bits(n, size=8):
+    return [(n >> i) & 1 for i in reversed(range(size))]
+
+# CTR mode
+def ctr_encrypt_decrypt(data_bits, K1, K2, counter_start):
+    blocks = [data_bits[i:i+8] for i in range(0,len(data_bits),8)]
+    result = []
+    counter = counter_start
+    for block in blocks:
+        ctr_bits = int_to_bits(counter, 8)
+        keystream = sdes_encrypt_block(ctr_bits, K1, K2)
+        out_block = [b ^ k for b,k in zip(block, keystream)]
+        result.extend(out_block)
+        counter += 1
+    return result
+
+# --- Test Data ---
+plaintext = str_to_bits("000000010000001000000100")  # three blocks
+key = str_to_bits("0111111101")
+counter_start = 0  # 00000000
+
+K1, K2 = key_generation(key)
+
+ciphertext = ctr_encrypt_decrypt(plaintext, K1, K2, counter_start)
+print("Ciphertext:", bits_to_str(ciphertext))
+
+decrypted = ctr_encrypt_decrypt(ciphertext, K1, K2, counter_start)
+print("Decrypted:", bits_to_str(decrypted))
