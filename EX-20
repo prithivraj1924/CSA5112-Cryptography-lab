@@ -1,0 +1,43 @@
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
+
+# Helper: pad plaintext to block size
+def pad(data, block_size=16):
+    padding_len = block_size - len(data) % block_size
+    return data + bytes([padding_len]) * padding_len
+
+def demo_ecb():
+    key = get_random_bytes(16)
+    cipher = AES.new(key, AES.MODE_ECB)
+
+    plaintext = pad(b"ECB DEMO BLOCKS TESTING1234567890")
+    ciphertext = cipher.encrypt(plaintext)
+
+    # Introduce error in ciphertext block 1
+    corrupted = bytearray(ciphertext)
+    corrupted[5] ^= 0xFF  # flip a bit
+    corrupted = bytes(corrupted)
+
+    decrypted = cipher.decrypt(corrupted)
+    print("ECB decrypted:", decrypted)
+
+def demo_cbc():
+    key = get_random_bytes(16)
+    iv = get_random_bytes(16)
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+
+    plaintext = pad(b"CBC DEMO BLOCKS TESTING1234567890")
+    ciphertext = cipher.encrypt(plaintext)
+
+    # Introduce error in ciphertext block 1
+    corrupted = bytearray(ciphertext)
+    corrupted[5] ^= 0xFF  # flip a bit in C1
+    corrupted = bytes(corrupted)
+
+    cipher_dec = AES.new(key, AES.MODE_CBC, iv)
+    decrypted = cipher_dec.decrypt(corrupted)
+    print("CBC decrypted:", decrypted)
+
+if __name__ == "__main__":
+    demo_ecb()
+    demo_cbc()
