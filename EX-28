@@ -1,0 +1,40 @@
+import random
+
+def diffie_hellman(q, a):
+    # Alice and Bob choose secrets
+    xA = random.randint(2, q-2)
+    xB = random.randint(2, q-2)
+
+    # Standard DH exchange
+    A = pow(a, xA, q)
+    B = pow(a, xB, q)
+
+    # Shared key
+    KA = pow(B, xA, q)
+    KB = pow(A, xB, q)
+
+    print("Standard DH:")
+    print("Alice sends:", A)
+    print("Bob sends:", B)
+    print("Shared key (Alice):", KA)
+    print("Shared key (Bob):", KB)
+
+    # Insecure variant: sending x*a mod q
+    A_insecure = (xA * a) % q
+    B_insecure = (xB * a) % q
+
+    print("\nInsecure variant:")
+    print("Alice sends:", A_insecure)
+    print("Bob sends:", B_insecure)
+
+    # Eve can recover secrets easily
+    recovered_xA = (A_insecure * pow(a, -1, q)) % q
+    recovered_xB = (B_insecure * pow(a, -1, q)) % q
+
+    print("Eve recovers Alice's secret:", recovered_xA)
+    print("Eve recovers Bob's secret:", recovered_xB)
+
+if __name__ == "__main__":
+    q = 353   # prime modulus
+    a = 3     # primitive root
+    diffie_hellman(q, a)
