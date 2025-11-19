@@ -1,0 +1,210 @@
+#!/usr/bin/env python3
+"""
+Automated attack on monoalphabetic substitution cipher (heuristic).
+- Uses randomized hill-climbing / simulated-annealing with multiple restarts.
+- Scoring combines digram fitness, common-word matches, and letter-frequency chi-sq penalty.
+- Interactive: paste ciphertext, choose top-N candidates (default 10).
+"""
+
+import random
+import math
+import time
+from collections import Counter
+
+ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+# Simple approximate digram frequencies (common digrams with rough weights).
+# These are not exhaustive — they're a heuristic to guide search.
+DIGRAM_WEIGHTS = {
+    "TH": 2.71, "HE": 2.33, "IN": 2.03, "ER": 1.78, "AN": 1.61,
+    "RE": 1.41, "ND": 1.32, "AT": 1.27, "ON": 1.13, "NT": 1.13,
+    "HA": 1.00, "ES": 0.99, "ST": 0.98, "EN": 0.97, "OF": 0.95,
+    "TE": 0.93, "OR": 0.92, "TI": 0.90, "HI": 0.89, "AS": 0.88,
+    "ET": 0.87, "OU": 0.85, "IO": 0.78, "LE": 0.76, "IS": 0.75,
+    "OR": 0.74, "VE": 0.70, "TH": 2.71, "ED": 0.68, "NG": 0.67
+}
+
+# Small set of very common English words for boosting likely plaintexts
+COMMON_WORDS = [
+    "THE", "AND", "TO", "OF", "IN", "THAT", "IS", "IT", "FOR", "AS",
+    "WITH", "WAS", "HE", "BE", "BY", "ON", "NOT", "ARE", "THIS", "BUT"
+]
+
+# English letter frequencies for chi-squared penalty (approx)
+ENGLISH_FREQ = {
+    'A': 8.167, 'B': 1.492, 'C': 2.782, 'D': 4.253, 'E': 12.702, 'F': 2.228,
+    'G': 2.015, 'H': 6.094, 'I': 6.966, 'J': 0.153, 'K': 0.772, 'L': 4.025,
+    'M': 2.406, 'N': 6.749, 'O': 7.507, 'P': 1.929, 'Q': 0.095, 'R': 5.987,
+    'S': 6.327, 'T': 9.056, 'U': 2.758, 'V': 0.978, 'W': 2.361, 'X': 0.150,
+    'Y': 1.974, 'Z': 0.074
+}
+
+def prepare_ciphertext(text):
+    """Normalize ciphertext: keep uppercase letters and spaces (for word matching)."""
+    return ''.join(ch.upper() if ch.isalpha() else (' ' if ch.isspace() else '') for ch in text)
+
+def random_key():
+    """Return a random monoalphabetic substitution key as dict mapping ciphertext->plaintext letter."""
+    letters = list(ALPHABET)
+    random.shuffle(letters)
+    return {c: p for c, p in zip(ALPHABET, letters)}
+
+def decrypt_with_key(ciphertext, key):
+    """Decrypt ciphertext (already normalized) with key dictionary."""
+    out = []
+    for ch in ciphertext:
+        if ch.isalpha():
+            out.append(key[ch])
+        else:
+            out.append(ch)
+    return ''.join(out)
+
+def chi_squared_penalty(text):
+    """Chi-squared penalty between text letter frequencies and English freq.
+       Lower penalty is better; we'll return a positive penalty value (smaller = better)."""
+    letters = [c for c in text if c.isalpha()]
+    n = len(letters)
+    if n == 0:
+        return 1e6
+    counts = Counter(letters)
+    score = 0.0
+    for L in ALPHABET:
+        observed = counts.get(L, 0)
+        expected = ENGLISH_FREQ[L] * n / 100.0
+        score += ((observed - expected) ** 2) / (expected + 1e-9)
+    return score
+
+def digram_score(text):
+    """Score text by summing weights of digrams found. Higher is better."""
+    score = 0.0
+    s = text.replace(" ", "")  # consider contiguous letters
+    for i in range(len(s)-1):
+        dig = s[i:i+2]
+        score += DIGRAM_WEIGHTS.get(dig, 0.0)
+    return score
+
+def common_word_score(text):
+    """Count occurrences of common words (space-padded)."""
+    t = " " + " ".join(text.split()) + " "
+    count = 0
+    for w in COMMON_WORDS:
+        count += t.count(" " + w + " ")
+    return count
+
+def fitness(text):
+    """
+    Combined fitness function (higher is better).
+    Components:
+      - digram_score (positive)
+      - word matches (boost)
+      - negative chi-squared penalty (we subtract scaled penalty)
+    Weighting factors chosen heuristically.
+    """
+    dscore = digram_score(text)
+    wscore = common_word_score(text) * 5.0
+    penalty = chi_squared_penalty(text) * 0.02
+    return dscore + wscore - penalty
+
+def neighbor_key_swap(key):
+    """Return a new key by swapping two plaintext letter assignments (neighbor in key-space)."""
+    # key maps ciphertext->plaintext
+    k = key.copy()
+    a, b = random.sample(ALPHABET, 2)
+    k[a], k[b] = k[b], k[a]
+    return k
+
+def key_to_str(key):
+    """Human-readable representation of key (cipher->plain in order A..Z)."""
+    return ''.join(key[c] for c in ALPHABET)
+
+def hill_climb_once(ciphertext, max_iters=2000, temp=1.0, cooling=0.0005):
+    """Single run of simulated-annealing-like hill climb.
+       Returns best (key, plaintext, score) found."""
+    # initialize random key
+    best_key = random_key()
+    best_pt = decrypt_with_key(ciphertext, best_key)
+    best_score = fitness(best_pt)
+
+    current_key = best_key
+    current_score = best_score
+
+    for i in range(max_iters):
+        # neighbor by swapping two mappings
+        candidate_key = neighbor_key_swap(current_key)
+        candidate_pt = decrypt_with_key(ciphertext, candidate_key)
+        candidate_score = fitness(candidate_pt)
+
+        # accept if better, or with probability depending on temp (simulated annealing)
+        if candidate_score > current_score or random.random() < math.exp((candidate_score - current_score) / (temp + 1e-12)):
+            current_key = candidate_key
+            current_score = candidate_score
+            # update global best
+            if current_score > best_score:
+                best_key, best_score, best_pt = current_key.copy(), current_score, decrypt_with_key(ciphertext, current_key)
+        # cool temperature
+        temp = max(0.0001, temp - cooling)
+
+    return best_key, best_pt, best_score
+
+def attack_substitution(ciphertext, restarts=50, iters_per_restart=2000, top_n=10, time_limit=None):
+    """Main driver: run multiple hill-climb restarts and collect best candidates."""
+    ciphertext = prepare_ciphertext(ciphertext)
+    seen_plaintexts = {}
+    start_time = time.time()
+
+    for r in range(restarts):
+        if time_limit and (time.time() - start_time) > time_limit:
+            break
+        key, pt, score = hill_climb_once(ciphertext, max_iters=iters_per_restart)
+        # store unique plaintexts by their text
+        if pt not in seen_plaintexts or seen_plaintexts[pt] < score:
+            seen_plaintexts[pt] = score
+
+    # build sorted list of candidates (score descending)
+    sorted_cands = sorted(seen_plaintexts.items(), key=lambda kv: kv[1], reverse=True)
+    results = []
+    for pt, score in sorted_cands[:top_n]:
+        results.append({'plaintext': pt, 'score': round(score, 4)})
+    return results
+
+def print_results(results):
+    print(f"{'Rank':>4}  {'Score':>8}  Plaintext")
+    print("-" * 80)
+    for i, r in enumerate(results, 1):
+        pt = r['plaintext']
+        disp = pt if len(pt) <= 70 else pt[:67] + "..."
+        print(f"{i:>4}  {r['score']:>8}  {disp}")
+
+def main():
+    print("Monoalphabetic substitution cipher - automated frequency attack")
+    print("----------------------------------------------------------------")
+    cipher = input("Paste ciphertext (letters and spaces; punctuation allowed but ignored):\n").strip()
+    if not cipher:
+        print("No ciphertext entered. Exiting.")
+        return
+    try:
+        top_n = int(input("How many top candidates to display? (default 10): ") or "10")
+    except ValueError:
+        top_n = 10
+    try:
+        restarts = int(input("Number of random restarts (default 60 — more = better but slower): ") or "60")
+    except ValueError:
+        restarts = 60
+    try:
+        iters = int(input("Iterations per restart (default 2000): ") or "2000")
+    except ValueError:
+        iters = 2000
+
+    print("\nRunning attack (this may take a while for many restarts)...")
+    start = time.time()
+    results = attack_substitution(cipher, restarts=restarts, iters_per_restart=iters, top_n=top_n)
+    elapsed = time.time() - start
+    print(f"\nDone in {elapsed:.2f} seconds. Top {len(results)} candidates:\n")
+    print_results(results)
+    print("\nNotes:")
+    print("- This uses a heuristic search. For longer ciphertexts (200+ letters) it usually performs well.")
+    print("- To improve results: increase restarts and iterations, add quadgram scoring or larger n-gram model.")
+    print("- If you want, you can paste any candidate here and I can help refine it further or try targeted hill-climbing.")
+
+if __name__ == "__main__":
+    main()
