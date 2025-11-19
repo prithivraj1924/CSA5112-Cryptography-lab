@@ -1,0 +1,46 @@
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
+
+BLOCK_SIZE = 16  # AES block size in bytes
+
+def custom_pad(data, block_size=BLOCK_SIZE):
+    """
+    Padding scheme: append a single '1' bit (0x80) followed by zeros
+    until the block is complete.
+    Always add padding, even if already aligned.
+    """
+    pad_len = block_size - (len(data) % block_size)
+    return data + b'\x80' + b'\x00' * (pad_len - 1)
+
+def custom_unpad(data):
+    # Remove padding: strip trailing zeros, then remove 0x80
+    return data.rstrip(b'\x00').rstrip(b'\x80')
+
+def demo_modes(plaintext):
+    key = get_random_bytes(16)
+    iv = get_random_bytes(16)
+
+    padded = custom_pad(plaintext)
+
+    # ECB
+    cipher_ecb = AES.new(key, AES.MODE_ECB)
+    ct_ecb = cipher_ecb.encrypt(padded)
+    pt_ecb = custom_unpad(cipher_ecb.decrypt(ct_ecb))
+    print("ECB decrypted:", pt_ecb)
+
+    # CBC
+    cipher_cbc = AES.new(key, AES.MODE_CBC, iv)
+    ct_cbc = cipher_cbc.encrypt(padded)
+    cipher_cbc_dec = AES.new(key, AES.MODE_CBC, iv)
+    pt_cbc = custom_unpad(cipher_cbc_dec.decrypt(ct_cbc))
+    print("CBC decrypted:", pt_cbc)
+
+    # CFB (segment size = 128 bits here)
+    cipher_cfb = AES.new(key, AES.MODE_CFB, iv, segment_size=128)
+    ct_cfb = cipher_cfb.encrypt(padded)
+    cipher_cfb_dec = AES.new(key, AES.MODE_CFB, iv, segment_size=128)
+    pt_cfb = custom_unpad(cipher_cfb_dec.decrypt(ct_cfb))
+    print("CFB decrypted:", pt_cfb)
+
+if __name__ == "__main__":
+    demo_modes(b"HELLO BLOCK CIPHER DEMO")
