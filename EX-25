@@ -1,0 +1,39 @@
+import math
+
+# Extended Euclidean Algorithm
+def egcd(a, b):
+    if b == 0:
+        return (a, 1, 0)
+    g, x1, y1 = egcd(b, a % b)
+    x = y1
+    y = x1 - (a // b) * y1
+    return (g, x, y)
+
+def modinv(a, m):
+    g, x, _ = egcd(a, m)
+    if g != 1:
+        raise ValueError("No modular inverse")
+    return x % m
+
+# Example RSA setup
+n = 3599   # modulus
+e = 31     # public exponent
+
+# Suppose someone tells us a plaintext block has a common factor with n
+plaintext_block = 59   # for example, divisible by p=59
+
+# Step 1: Compute gcd to find factor
+factor = math.gcd(plaintext_block, n)
+print("Discovered factor:", factor)
+
+# Step 2: Compute other factor
+p = factor
+q = n // p
+print("Factors: p =", p, "q =", q)
+
+# Step 3: Compute phi(n)
+phi = (p - 1) * (q - 1)
+
+# Step 4: Compute private key d
+d = modinv(e, phi)
+print("Private key d =", d)
