@@ -1,0 +1,53 @@
+import math
+import string
+
+def mod_inverse(a, m):
+    """Find modular inverse of a modulo m using Extended Euclidean Algorithm."""
+    a = a % m
+    for x in range(1, m):
+        if (a * x) % m == 1:
+            return x
+    raise ValueError(f"No modular inverse for a={a} under mod {m}")
+
+def affine_encrypt(text, a, b):
+    if math.gcd(a, 26) != 1:
+        raise ValueError(f"a={a} is not coprime with 26, cipher is not one-to-one!")
+    result = []
+    for ch in text.upper():
+        if ch in string.ascii_uppercase:
+            p = ord(ch) - ord('A')
+            c = (a * p + b) % 26
+            result.append(chr(c + ord('A')))
+        else:
+            result.append(ch)
+    return ''.join(result)
+
+def affine_decrypt(cipher, a, b):
+    if math.gcd(a, 26) != 1:
+        raise ValueError(f"a={a} is not coprime with 26, decryption impossible!")
+    a_inv = mod_inverse(a, 26)
+    result = []
+    for ch in cipher.upper():
+        if ch in string.ascii_uppercase:
+            c = ord(ch) - ord('A')
+            p = (a_inv * (c - b)) % 26
+            result.append(chr(p + ord('A')))
+        else:
+            result.append(ch)
+    return ''.join(result)
+
+# --- Demo ---
+plaintext = "HELLOAFFINE"
+a, b = 5, 8  # valid choice since gcd(5,26)=1
+cipher = affine_encrypt(plaintext, a, b)
+decrypted = affine_decrypt(cipher, a, b)
+
+print("Plaintext:", plaintext)
+print("Ciphertext:", cipher)
+print("Decrypted:", decrypted)
+
+# Example of invalid a
+try:
+    affine_encrypt("TEST", 2, 3)  # gcd(2,26)=2, not coprime
+except ValueError as e:
+    print("Error:", e)
