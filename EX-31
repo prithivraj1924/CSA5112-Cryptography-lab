@@ -1,0 +1,44 @@
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
+
+def left_shift_one_bit(input_bytes):
+    """Shift a byte string left by one bit."""
+    shifted = int.from_bytes(input_bytes, 'big') << 1
+    shifted &= (1 << (len(input_bytes) * 8)) - 1  # mask to block size
+    return shifted.to_bytes(len(input_bytes), 'big')
+
+def generate_subkeys(key, block_size=16):
+    """
+    Generate CMAC subkeys K1 and K2.
+    block_size: 8 for 64-bit cipher, 16 for 128-bit cipher
+    """
+    # Select Rb constant based on block size
+    if block_size == 8:   # 64-bit block
+        Rb = 0x1B
+    elif block_size == 16:  # 128-bit block
+        Rb = 0x87
+    else:
+        raise ValueError("Unsupported block size")
+
+    # Encrypt all-zero block
+    cipher = AES.new(key, AES.MODE_ECB) if block_size == 16 else None
+    zero_block = b'\x00' * block_size
+    L = cipher.encrypt(zero_block) if cipher else zero_block  # AES example
+
+    # Generate K1
+    K1 = left_shift_one_bit(L)
+    if (L[0] & 0x80):  # if MSB of L is 1
+        K1 = (int.from_bytes(K1, 'big') ^ Rb).to_bytes(block_size, 'big')
+
+    # Generate K2
+    K2 = left_shift_one_bit(K1)
+    if (K1[0] & 0x80):  # if MSB of K1 is 1
+        K2 = (int.from_bytes(K2, 'big') ^ Rb).to_bytes(block_size, 'big')
+
+    return K1, K2
+
+# --- Demo with AES (128-bit block) ---
+key = get_random_bytes(16)
+K1, K2 = generate_subkeys(key, block_size=16)
+print("K1 =", K1.hex())
+print("K2 =", K2.hex())
