@@ -1,0 +1,44 @@
+import string
+from collections import Counter
+
+# English letter frequency order (most common to least common)
+ENGLISH_FREQ_ORDER = "ETAOINSHRDLCUMWFGYPBVKJXQZ"
+
+def decrypt_with_mapping(ciphertext, mapping):
+    """Apply a substitution mapping to ciphertext."""
+    return ''.join(mapping.get(ch, ch) for ch in ciphertext.upper())
+
+def score_text(text):
+    """Score based on frequency similarity to English."""
+    counts = Counter(ch for ch in text if ch in string.ascii_uppercase)
+    if not counts:
+        return 0
+    most_common = [c for c, _ in counts.most_common(6)]
+    score = sum(ENGLISH_FREQ_ORDER.index(c) for c in most_common if c in ENGLISH_FREQ_ORDER)
+    return -score  # lower is better
+
+def frequency_attack(ciphertext, top_n=10):
+    # Count frequency of letters in ciphertext
+    counts = Counter(ch for ch in ciphertext.upper() if ch in string.ascii_uppercase)
+    sorted_cipher_letters = [item[0] for item in counts.most_common()]
+    
+    candidates = []
+    # Try different rotations of English frequency order
+    for shift in range(top_n):
+        rotated_order = ENGLISH_FREQ_ORDER[shift:] + ENGLISH_FREQ_ORDER[:shift]
+        mapping = {sorted_cipher_letters[i]: rotated_order[i] 
+                   for i in range(len(sorted_cipher_letters))}
+        pt = decrypt_with_mapping(ciphertext, mapping)
+        candidates.append((score_text(pt), shift, pt))
+    
+    candidates.sort()
+    return candidates[:top_n]
+
+# --- Demo ---
+ciphertext = "ZOL SLHRL TLZSSBL"  # Example ciphertext
+
+top_guesses = frequency_attack(ciphertext, top_n=10)
+print("Ciphertext:", ciphertext)
+print("\nTop 10 possible plaintexts:")
+for rank, (score, shift, pt) in enumerate(top_guesses, 1):
+    print(f"{rank}. Guess={pt}")
