@@ -1,0 +1,145 @@
+/* des_keygen_custom.c
+ *
+ * DES-style key schedule with the constraint:
+ *  - For each round subkey (48 bits):
+ *      * first 24 bits come from same 28-bit subset (C)
+ *      * second 24 bits come from the disjoint 28-bit subset (D)
+ *
+ * This is an educational variant (NOT standard DES PC-2 mapping).
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+/* Standard DES tables used: PC-1 and shift schedule (PC-2 is NOT used here).
+   PC-1 drops parity bits and produces 56 bits (we then split to C and D). */
+static const int PC1[56] = {
+ 57,49,41,33,25,17,9,
+ 1,58,50,42,34,26,18,
+ 10,2,59,51,43,35,27,
+ 19,11,3,60,52,44,36,
+ 63,55,47,39,31,23,15,
+ 7,62,54,46,38,30,22,
+ 14,6,61,53,45,37,29,
+ 21,13,5,28,20,12,4
+};
+
+/* Standard DES left-rotation schedule */
+static const int SHIFT_SCHEDULE[16] = {
+ 1,1,2,2,2,2,2,2,1,2,2,2,2,2,2,1
+};
+
+/* Helper: convert hex char to int (0..15) */
+int hexval(char c) {
+    if ('0' <= c && c <= '9') return c - '0';
+    if ('a' <= c && c <= 'f') return 10 + (c - 'a');
+    if ('A' <= c && c <= 'F') return 10 + (c - 'A');
+    return 0;
+}
+
+/* Convert hex string (no spaces) to bit array (msb-first per hex digit).
+   outbits must have size at least hexlen*4. */
+void hex_to_bits(const char *hex, int *outbits, int *outlen) {
+    int L = (int)strlen(hex);
+    int idx = 0;
+    for (int i = 0; i < L; ++i) {
+        char c = hex[i];
+        if (isspace((unsigned char)c)) continue;
+        int v = hexval(c);
+        outbits[idx++] = (v >> 3) & 1;
+        outbits[idx++] = (v >> 2) & 1;
+        outbits[idx++] = (v >> 1) & 1;
+        outbits[idx++] = (v >> 0) & 1;
+    }
+    *outlen = idx;
+}
+
+/* Permute bits[] by table (1-based positions). table_len entries. */
+void permute(const int *bits, int bits_len, const int *table, int table_len, int *out) {
+    for (int i = 0; i < table_len; ++i) {
+        int pos = table[i] - 1; /* table uses 1-based indexing */
+        if (pos < 0 || pos >= bits_len) out[i] = 0;
+        else out[i] = bits[pos];
+    }
+}
+
+/* Left rotate an array of length len by shift positions (in-place). */
+void left_rotate(int *arr, int len, int shift) {
+    if (shift <= 0 || shift % len == 0) return;
+    shift = shift % len;
+    int *tmp = (int *)malloc(sizeof(int) * shift);
+    if (!tmp) exit(1);
+    for (int i = 0; i < shift; ++i) tmp[i] = arr[i];
+    for (int i = 0; i < len - shift; ++i) arr[i] = arr[i + shift];
+    for (int i = 0; i < shift; ++i) arr[len - shift + i] = tmp[i];
+    free(tmp);
+}
+
+/* Print 48-bit key (bits[0..47]) as 12-hex-digit string */
+void print_48bits_hex(const int *bits48) {
+    unsigned int value = 0;
+    /* We'll output 48 bits as 12 hex chars. Build 4-bit chunks. */
+    for (int nib = 0; nib < 12; ++nib) {
+        int v = 0;
+        for (int b = 0; b < 4; ++b) {
+            int bit_index = nib * 4 + b; /* 0..47 */
+            v = (v << 1) | (bits48[bit_index] & 1);
+        }
+        printf("%X", v & 0xF);
+    }
+}
+
+/* Custom key-generation:
+   - Input: 64-bit key hex string (16 hex chars)
+   - Process: PC-1 -> 56 bits -> split C(28), D(28)
+   - For round i: left_rotate C and D by SHIFT_SCHEDULE[i]
+                 produce subkey Ki (48 bits): first 24 bits = C[0..23], second 24 bits = D[0..23]
+*/
+int main(void) {
+    const char *key_hex = "133457799BBCDFF1"; /* example key; you can change or read from stdin */
+    int keybits[64];
+    int keybits_len = 0;
+
+    hex_to_bits(key_hex, keybits, &keybits_len);
+    if (keybits_len != 64) {
+        fprintf(stderr, "Provided key hex must represent 64 bits (16 hex digits). Got %d bits.\n", keybits_len);
+        return 1;
+    }
+
+    /* Apply PC-1 to get 56-bit permuted key */
+    int perm56[56];
+    permute(keybits, 64, PC1, 56, perm56);
+
+    /* Split into C and D halves (28 bits each) */
+    int C[28], D[28];
+    for (int i = 0; i < 28; ++i) {
+        C[i] = perm56[i];
+        D[i] = perm56[28 + i];
+    }
+
+    printf("Custom DES-like key schedule (first 24 bits from C, next 24 from D) for key %s\n\n", key_hex);
+    printf("Round  Subkey(12 hex digits = 48 bits)\n");
+    printf("-----  ---------------------------\n");
+
+    /* For 16 rounds generate subkeys */
+    for (int round = 0; round < 16; ++round) {
+        int shift = SHIFT_SCHEDULE[round];
+        left_rotate(C, 28, shift);
+        left_rotate(D, 28, shift);
+
+        /* Build 48-bit subkey: take C[0..23] then D[0..23] */
+        int subkey48[48];
+        for (int i = 0; i < 24; ++i) subkey48[i] = C[i] & 1;
+        for (int i = 0; i < 24; ++i) subkey48[24 + i] = D[i] & 1;
+
+        /* Print round number (1-based) and subkey */
+        printf("%2d     ", round + 1);
+        print_48bits_hex(subkey48);
+        printf("\n");
+    }
+
+    printf("\nNote: This mapping differs from standard DES PC-2 (which mixes bits from both halves).\n");
+    return 0;
+}
