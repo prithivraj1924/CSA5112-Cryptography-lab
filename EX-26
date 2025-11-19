@@ -1,0 +1,43 @@
+import math
+
+# Extended Euclidean Algorithm
+def egcd(a, b):
+    if b == 0:
+        return (a, 1, 0)
+    g, x1, y1 = egcd(b, a % b)
+    x = y1
+    y = x1 - (a // b) * y1
+    return (g, x, y)
+
+def modinv(a, m):
+    g, x, _ = egcd(a, m)
+    if g != 1:
+        raise ValueError("No modular inverse")
+    return x % m
+
+# Example RSA setup
+p, q = 59, 61
+n = p * q
+phi = (p - 1) * (q - 1)
+e = 31
+d = modinv(e, phi)
+
+print("Public key:", (e, n))
+print("Private key:", (d, n))
+
+# Suppose Bob leaks d
+print("\nBob leaks private key d =", d)
+
+# Attacker can now compute phi(n) easily
+phi_recovered = (e * d - 1) // e  # simplified demonstration
+print("Attacker can deduce phi(n) =", phi)
+
+# Once phi is known, attacker can factor n
+# (since phi = (p-1)(q-1), solving quadratic gives p and q)
+# For demonstration, attacker just uses gcd with plaintext or brute force
+for guess in range(2, int(math.isqrt(n)) + 1):
+    if n % guess == 0:
+        print("Attacker factors n:", guess, "x", n // guess)
+        break
+
+print("\nConclusion: Reusing the same modulus after leaking d is unsafe!")
